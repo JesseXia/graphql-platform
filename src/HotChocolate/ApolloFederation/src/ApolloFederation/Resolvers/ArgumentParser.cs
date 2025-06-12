@@ -76,15 +76,32 @@ internal static class ArgumentParser
                     break;
                 }
 
-            case SyntaxKind.NullValue:
-                value = default;
-                return true;
+            case SyntaxKind.ListValue:
+                // Support for list/array traversal: expect current path segment to be an integer index
+                if (int.TryParse(path[i], out int index))
+                {
+                    var list = ((ListValueNode)valueNode).Items;
+                    if (index >= 0 && index < list.Count)
+                    {
+                        // ListType exposes ElementType property
+                        var elementType = type is ListType lt ? lt.ElementType : type;
+                        if (path.Length < ++i && elementType.IsCompositeType())
+                        {
+                            break;
+                        }
+                        return TryGetValue(list[index], elementType, path, i, out value);
+                    }
+                }
+                break;
 
             case SyntaxKind.StringValue:
             case SyntaxKind.IntValue:
             case SyntaxKind.FloatValue:
             case SyntaxKind.BooleanValue:
                 if (type.NamedType() is not ScalarType scalarType)
+            {
+                // Use type is ScalarType
+                if (type is not ScalarType scalarType)
                 {
                     break;
                 }
@@ -95,7 +112,7 @@ internal static class ArgumentParser
                     return true;
                 }
                 break;
-
+            }
             case SyntaxKind.EnumValue:
                 if (type.NamedType() is not EnumType enumType)
                 {
