@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using HotChocolate.Language;
+using HotChocolate.Types;
 using HotChocolate.Utilities;
 
 namespace HotChocolate.ApolloFederation.Resolvers;
@@ -57,39 +58,49 @@ internal static class ArgumentParser
                 }
                 break;
             }
-            case SyntaxKind.NullValue:
+            case SyntaxKind.ListValue:
             {
-                value = default;
-                return true;
+                // Support for list/array traversal: expect current path segment to be an integer index
+                if (int.TryParse(path[i], out int index))
+                {
+                    var list = ((ListValueNode)valueNode).Items;
+                    if (index >= 0 && index < list.Count)
+                    {
+                        // ListType exposes ElementType property
+                        var elementType = type is ListType lt ? lt.ElementType : type;
+                        if (path.Length < ++i && elementType.IsCompositeType())
+                        {
+                            break;
+                        }
+                        return TryGetValue(list[index], elementType, path, i, out value);
+                    }
+                }
+                break;
             }
             case SyntaxKind.StringValue:
             case SyntaxKind.IntValue:
             case SyntaxKind.FloatValue:
             case SyntaxKind.BooleanValue:
             {
-                if (type.NamedType() is not ScalarType scalarType)
+                // Use type is ScalarType
+                if (type is not ScalarType scalarType)
                 {
                     break;
                 }
-
                 var literal = scalarType.ParseLiteral(valueNode)!;
-
                 if (DefaultTypeConverter.Default.TryConvert(typeof(T), literal, out var converted))
                 {
                     value = (T)converted;
                     return true;
                 }
-
                 break;
             }
-
             case SyntaxKind.EnumValue:
             {
-                if (type.NamedType() is not EnumType enumType)
+                if (type is not EnumType enumType)
                 {
                     break;
                 }
-
                 value = (T)enumType.ParseLiteral(valueNode)!;
                 return true;
             }
@@ -145,7 +156,22 @@ internal static class ArgumentParser
                 }
                 break;
             }
-
+            case SyntaxKind.ListValue:
+            {
+                if (int.TryParse(path[i], out int index))
+                {
+                    var list = ((ListValueNode)valueNode).Items;
+                    if (index >= 0 && index < list.Count)
+                    {
+                        if (path.Length >= ++i)
+                        {
+                            return Matches(list[index], path, i);
+                        }
+                        return true;
+                    }
+                }
+                break;
+            }
             case SyntaxKind.NullValue:
             case SyntaxKind.StringValue:
             case SyntaxKind.IntValue:
