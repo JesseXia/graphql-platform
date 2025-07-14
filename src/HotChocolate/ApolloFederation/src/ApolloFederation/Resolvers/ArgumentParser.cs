@@ -35,7 +35,6 @@ internal static class ArgumentParser
         switch (valueNode.Kind)
         {
             case SyntaxKind.ObjectValue:
-            {
                 var current = path[i];
 
                 if (type is not IComplexTypeDefinition complexType
@@ -57,33 +56,35 @@ internal static class ArgumentParser
                     }
                 }
                 break;
-            }
             case SyntaxKind.ListValue:
-            {
-                // Support for list/array traversal: expect current path segment to be an integer index
-                if (int.TryParse(path[i], out int index))
                 {
-                    var list = ((ListValueNode)valueNode).Items;
-                    if (index >= 0 && index < list.Count)
+                    // Support for list/array traversal: expect current path segment to be an integer index
+                    if (int.TryParse(path[i], out int index))
                     {
-                        // ListType exposes ElementType property
-                        var elementType = type is ListType lt ? lt.ElementType : type;
-                        if (path.Length < ++i && elementType.IsCompositeType())
+                        var list = ((ListValueNode)valueNode).Items;
+                        if (index >= 0 && index < list.Count)
                         {
-                            break;
+                            // ListType exposes ElementType property
+                            var elementType = type is ListType lt ? lt.ElementType : type;
+                            if (path.Length < ++i && elementType.IsCompositeType())
+                            {
+                                break;
+                            }
+                            return TryGetValue(list[index], elementType, path, i, out value);
                         }
-                        return TryGetValue(list[index], elementType, path, i, out value);
                     }
+                    break;
                 }
-                break;
-            }
+
+            case SyntaxKind.NullValue:
+                value = default;
+                return true;
+
             case SyntaxKind.StringValue:
             case SyntaxKind.IntValue:
             case SyntaxKind.FloatValue:
             case SyntaxKind.BooleanValue:
-            {
-                // Use type is ScalarType
-                if (type is not ScalarType scalarType)
+                if (type.NamedType() is not ScalarType scalarType)
                 {
                     break;
                 }
@@ -94,16 +95,14 @@ internal static class ArgumentParser
                     return true;
                 }
                 break;
-            }
+
             case SyntaxKind.EnumValue:
-            {
-                if (type is not EnumType enumType)
+                if (type.NamedType() is not EnumType enumType)
                 {
                     break;
                 }
                 value = (T)enumType.ParseLiteral(valueNode)!;
                 return true;
-            }
         }
 
         value = default;
@@ -140,7 +139,6 @@ internal static class ArgumentParser
         switch (valueNode.Kind)
         {
             case SyntaxKind.ObjectValue:
-            {
                 var current = path[i];
 
                 foreach (var fieldValue in ((ObjectValueNode)valueNode).Fields)
@@ -155,7 +153,6 @@ internal static class ArgumentParser
                     }
                 }
                 break;
-            }
             case SyntaxKind.ListValue:
             {
                 if (int.TryParse(path[i], out int index))
@@ -172,6 +169,7 @@ internal static class ArgumentParser
                 }
                 break;
             }
+
             case SyntaxKind.NullValue:
             case SyntaxKind.StringValue:
             case SyntaxKind.IntValue:
